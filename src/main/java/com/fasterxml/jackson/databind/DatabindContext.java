@@ -1,5 +1,6 @@
 package com.fasterxml.jackson.databind;
 
+import java.lang.reflect.Array;
 import java.lang.reflect.Type;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -670,8 +671,9 @@ public abstract class DatabindContext
      * declared type (see {@link #_componentTypeOrNone}), unless the validator
      * approves the array type specifically: a rule naming it, like
      * {@code allowIfSubType(Bar[].class)}, is the application's choice of that
-     * array and its elements. A rule every array matches, like
-     * {@code allowIfSubType(Serializable.class)}, approves nothing about the
+     * array and its elements. A rule every array of that depth matches, like
+     * {@code allowIfSubType(Serializable.class)} or
+     * {@code allowIfSubType(Object[][].class)}, approves nothing about the
      * element type, nor does approval of the base type.
      *
      * @param declaredType Declared type of the array, {@code null} if none
@@ -684,11 +686,24 @@ public abstract class DatabindContext
         final JavaType baseType = (declaredType == null)
                 ? getTypeFactory().unknownType() : declaredType;
         if (_isApprovedSubType(ptv, config, baseType, arrayType)
-                && !_isApprovedSubType(ptv, config, baseType, config.constructType(Object[].class))) {
+                && !_isApprovedSubType(ptv, config, baseType, _objectArrayOfSameDepth(arrayType))) {
             return;
         }
         _validateTypeParameter(polymorphicBase, typeId,
                 _componentTypeOrNone(declaredType), arrayType.getContentType(), ptv, config);
+    }
+
+    /**
+     * The {@code Object} array with as many dimensions as the given array type:
+     * a rule that approves it approves every array of that depth.
+     */
+    private JavaType _objectArrayOfSameDepth(JavaType arrayType)
+    {
+        int depth = 0;
+        for (JavaType t = arrayType; t.isArrayType(); t = t.getContentType()) {
+            ++depth;
+        }
+        return constructType(Array.newInstance(Object.class, new int[depth]).getClass());
     }
 
     private static boolean _isApprovedSubType(PolymorphicTypeValidator ptv,

@@ -311,4 +311,35 @@ public class ArrayTypeIdElementTest extends DatabindTestUtil
         InvalidTypeIdException e = assertRejected(mapper, json, ObjectHolder.class);
         verifyException(e, "denied resolution of contained type `" + SAFE_BEAN + "`");
     }
+
+    // A rule every array of some depth matches vouches for no element type
+    // either, whatever the depth
+    @Test
+    public void ruleMatchingEveryArrayOfADepthVouchesForNoElementType() throws Exception
+    {
+        String gadgets2 = "{\"value\":[\"[[L" + GADGET + ";\",[[{\"cmd\":\"x\"}]]]}";
+        String gadgets3 = "{\"value\":[\"[[[L" + GADGET + ";\",[[[{\"cmd\":\"x\"}]]]]}";
+        String strings2 = "{\"value\":[\"[[Ljava.lang.String;\",[[\"a\"]]]}";
+        for (Class<?> everyArrayOfThatDepth : new Class<?>[] { Object[][].class, Object[][][].class }) {
+            ObjectMapper mapper = mapperWith(BasicPolymorphicTypeValidator.builder()
+                    .allowIfSubType(everyArrayOfThatDepth)
+                    .build());
+            String gadgets = (everyArrayOfThatDepth == Object[][].class) ? gadgets2 : gadgets3;
+            InvalidTypeIdException e = assertRejected(mapper, gadgets, ObjectHolder.class);
+            verifyException(e, "denied resolution of contained type `" + GADGET + "`");
+        }
+        ObjectMapper mapper = mapperWith(BasicPolymorphicTypeValidator.builder()
+                .allowIfSubType(Object[][].class)
+                .build());
+        assertEquals("a", ((String[][]) mapper.readValue(strings2, ObjectHolder.class).value)[0][0]);
+
+        // A rule naming the two-dimensional array type is specific
+        mapper = mapperWith(BasicPolymorphicTypeValidator.builder()
+                .allowIfSubType(SafeBean[][].class)
+                .build());
+        SafeBean[][] beans = (SafeBean[][]) mapper.readValue(
+                "{\"value\":[\"[[L" + SAFE_BEAN + ";\",[[{\"text\":\"hi\"}]]]}",
+                ObjectHolder.class).value;
+        assertEquals("hi", beans[0][0].text);
+    }
 }
